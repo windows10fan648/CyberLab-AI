@@ -2,6 +2,7 @@ import express, { type Request, type Response } from 'express';
 import cors from 'cors';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
+import path from 'node:path';
 import { db } from '../database/db.js';
 import { MockLabProvider } from '../lab/MockLabProvider.js';
 import { ToolRegistry } from '../lab/ToolRegistry.js';
@@ -30,4 +31,12 @@ app.get('/api/lab/sessions/:id', (req,res) => { const s=rowSession(req.params.id
 async function action(req:Request,res:Response,kind:string) { const id=String(req.params.id); const r=rowSession(id); if(!r) return res.status(404).json({error:'Lab session not found'}); try { const s=lab.get(id); if(!s) throw new Error('Mock provider session unavailable'); if(kind==='start') await lab.startSession(id); if(kind==='stop') await lab.stopSession(id); if(kind==='revert') await lab.revertSnapshot(id); if(kind==='telemetry') { const telemetry=await lab.collectTelemetry(id); db.prepare('INSERT INTO telemetry VALUES (?,?,?,?)').run(telemetry.id,telemetry.sessionId,JSON.stringify(telemetry),telemetry.capturedAt); audit('collect_telemetry',{},telemetry,id); emit('telemetry',telemetry); return res.json(telemetry); } saveSession(s); audit(`${kind}_lab`,{},s,id); emit('lab',publicSession(s)); return res.json(publicSession(s)); } catch(e) { return res.status(400).json({error:e instanceof Error?e.message:'Lab action failed'}); } }
 app.post('/api/lab/sessions/:id/start',(q,r)=>action(q,r,'start')); app.post('/api/lab/sessions/:id/stop',(q,r)=>action(q,r,'stop')); app.post('/api/lab/sessions/:id/revert',(q,r)=>action(q,r,'revert')); app.post('/api/lab/sessions/:id/telemetry',(q,r)=>action(q,r,'telemetry'));
 app.post('/api/lab/sessions/:id/extend',(req,res)=>{ const r=rowSession(req.params.id); const minutes=z.number().int().min(1).max(120).safeParse(req.body.minutes); if(!r||!minutes.success) return res.status(400).json({error:'Valid session and extension minutes required'}); const base=new Date(r.ends_at||Date.now()).getTime(); db.prepare('UPDATE lab_sessions SET ends_at=? WHERE id=?').run(new Date(base+minutes.data*60000).toISOString(),r.id); const s=rowSession(r.id); audit('extend_lab_session',{minutes:minutes.data},s,r.id); emit('lab',publicSession(s)); res.json(publicSession(s)); });
+
+const clientDist = path.resolve(process.cwd(), 'dist/client');
+app.use(express.static(clientDist));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) return next();
+  res.sendFile(path.join(clientDist, 'index.html'));
+});
+
 export { app, emit };
