@@ -9,7 +9,7 @@
     "build": "npm run build:server && npm run build:client",
     "build:server": "tsc -p server/tsconfig.json",
     "build:client": "vite build --config client/vite.config.ts",
-    "start": "node dist/server/src/index.js",
+    "start": "node dist/server/server/src/index.js",
     "test": "vitest run",
     "db:init": "tsx server/src/database/init.ts"
   },
@@ -31,7 +31,6 @@
     "@types/node": "^22.13.4",
     "concurrently": "^9.1.2",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.3",
     "vite": "^6.1.0",
     "vitest": "^3.0.5"
   },
