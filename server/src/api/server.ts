@@ -3,7 +3,6 @@ import cors from 'cors';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { db } from '../database/db.js';
 import { MockLabProvider } from '../lab/MockLabProvider.js';
 import { ToolRegistry } from '../lab/ToolRegistry.js';
@@ -33,9 +32,7 @@ async function action(req:Request,res:Response,kind:string) { const id=String(re
 app.post('/api/lab/sessions/:id/start',(q,r)=>action(q,r,'start')); app.post('/api/lab/sessions/:id/stop',(q,r)=>action(q,r,'stop')); app.post('/api/lab/sessions/:id/revert',(q,r)=>action(q,r,'revert')); app.post('/api/lab/sessions/:id/telemetry',(q,r)=>action(q,r,'telemetry'));
 app.post('/api/lab/sessions/:id/extend',(req,res)=>{ const r=rowSession(req.params.id); const minutes=z.number().int().min(1).max(120).safeParse(req.body.minutes); if(!r||!minutes.success) return res.status(400).json({error:'Valid session and extension minutes required'}); const base=new Date(r.ends_at||Date.now()).getTime(); db.prepare('UPDATE lab_sessions SET ends_at=? WHERE id=?').run(new Date(base+minutes.data*60000).toISOString(),r.id); const s=rowSession(r.id); audit('extend_lab_session',{minutes:minutes.data},s,r.id); emit('lab',publicSession(s)); res.json(publicSession(s)); });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const clientDist = path.resolve(__dirname, '../../../../client');
+const clientDist = path.resolve(process.cwd(), 'dist/client');
 app.use(express.static(clientDist));
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
